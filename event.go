@@ -1,5 +1,3 @@
 package eventhub
 
-type Event interface {
-	EventType() string
-}
+type Event interface{}

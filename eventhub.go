@@ -2,23 +2,24 @@ package eventhub
 
 import "sync"
 
-const MAX_PENDING_SUBSCRIBER_EVENTS = 1024
-
 type Hub interface {
 	Subscribe() (Source, error)
 	Emit(Event)
 	Close() error
-	HasSubscribers() bool
 }
 
 type hub struct {
+	bufferSize int
+
 	subscribers []Source
 	closed      bool
 	lock        sync.Mutex
 }
 
-func New() Hub {
-	return &hub{}
+func NewNonBlocking(consumerBufferSize int) Hub {
+	return &hub{
+		bufferSize: consumerBufferSize,
+	}
 }
 
 func (hub *hub) Subscribe() (Source, error) {
@@ -29,7 +30,7 @@ func (hub *hub) Subscribe() (Source, error) {
 		return nil, ErrSubscribedToClosedHub
 	}
 
-	sub := newSource(MAX_PENDING_SUBSCRIBER_EVENTS)
+	sub := newSource(hub.bufferSize)
 	hub.subscribers = append(hub.subscribers, sub)
 
 	return sub, nil
@@ -63,13 +64,6 @@ func (hub *hub) Close() error {
 	hub.closed = true
 
 	return nil
-}
-
-func (hub *hub) HasSubscribers() bool {
-	hub.lock.Lock()
-	defer hub.lock.Unlock()
-
-	return len(hub.subscribers) != 0
 }
 
 func (hub *hub) closeSubscribers() {

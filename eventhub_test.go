@@ -17,45 +17,15 @@ func (fakeEvent) EventType() string {
 
 var _ = Describe("Hub", func() {
 	var (
+		consumerBufferSize int
+
 		hub eventhub.Hub
 	)
 
 	BeforeEach(func() {
-		hub = eventhub.New()
-	})
+		consumerBufferSize = 5
 
-	Describe("HasSubscribers", func() {
-		It("returns false", func() {
-			Ω(hub.HasSubscribers()).Should(BeFalse())
-		})
-
-		Context("when there is a subscriber", func() {
-			var eventSource eventhub.Source
-
-			BeforeEach(func() {
-				var err error
-				eventSource, err = hub.Subscribe()
-				Ω(err).ShouldNot(HaveOccurred())
-			})
-
-			It("returns true", func() {
-				Ω(hub.HasSubscribers()).Should(BeTrue())
-			})
-
-			Context("when all subscribers are dropped", func() {
-				BeforeEach(func() {
-					err := eventSource.Close()
-					Ω(err).ShouldNot(HaveOccurred())
-
-					// emit event so hub sees closed source and drops subscription
-					hub.Emit(fakeEvent{})
-				})
-
-				It("returns false", func() {
-					Ω(hub.HasSubscribers()).Should(BeFalse())
-				})
-			})
-		})
+		hub = eventhub.NewNonBlocking(consumerBufferSize)
 	})
 
 	It("fans-out events emitted to it to all subscribers", func() {
@@ -73,12 +43,12 @@ var _ = Describe("Hub", func() {
 		Ω(source2.Next()).Should(Equal(fakeEvent{Token: 2}))
 	})
 
-	It("closes slow consumers after MAX_PENDING_SUBSCRIBER_EVENTS missed events", func() {
+	It("closes slow consumers after N missed events", func() {
 		slowConsumer, err := hub.Subscribe()
 		Ω(err).ShouldNot(HaveOccurred())
 
 		By("filling the 'buffer'")
-		for eventToken := 0; eventToken < eventhub.MAX_PENDING_SUBSCRIBER_EVENTS; eventToken++ {
+		for eventToken := 0; eventToken < consumerBufferSize; eventToken++ {
 			hub.Emit(fakeEvent{Token: eventToken})
 		}
 
@@ -92,12 +62,12 @@ var _ = Describe("Hub", func() {
 		Ω(ev).Should(Equal(fakeEvent{Token: 1}))
 
 		By("putting 3 more events on, 'overflowing the buffer' and making the consumer 'slow'")
-		for eventToken := eventhub.MAX_PENDING_SUBSCRIBER_EVENTS; eventToken < eventhub.MAX_PENDING_SUBSCRIBER_EVENTS+3; eventToken++ {
+		for eventToken := consumerBufferSize; eventToken < consumerBufferSize+3; eventToken++ {
 			hub.Emit(fakeEvent{Token: eventToken})
 		}
 
 		By("reading off all the 'buffered' events")
-		for eventToken := 2; eventToken < eventhub.MAX_PENDING_SUBSCRIBER_EVENTS+2; eventToken++ {
+		for eventToken := 2; eventToken < consumerBufferSize+2; eventToken++ {
 			ev, err = slowConsumer.Next()
 			Ω(err).ShouldNot(HaveOccurred())
 			Ω(ev).Should(Equal(fakeEvent{Token: eventToken}))

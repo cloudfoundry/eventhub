@@ -35,6 +35,7 @@ func (source *source) Close() error {
 	if source.closed {
 		return ErrSourceAlreadyClosed
 	}
+
 	close(source.events)
 	source.closed = true
 
