@@ -1,7 +1,7 @@
 package eventhub_test
 
 import (
-	"github.com/pivotal-golang/eventhub"
+	"code.cloudfoundry.org/eventhub"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
